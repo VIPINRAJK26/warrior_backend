@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from warrior_app.models import MainPreview, Products, PreviewDetails, HeroCarousel,ContactSupport,User,Cart,CartItem,BuyNow,OrderItem
+from warrior_app.models import MainPreview, Products, PreviewDetails, HeroCarousel,ContactSupport,User,Cart,CartItem,BuyNow,OrderItem,SUB_CATEGORY_CHOICES
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -17,6 +17,7 @@ class ProductsSerializer(serializers.ModelSerializer):
     variant = serializers.SlugRelatedField(
         queryset=PreviewDetails.objects.all(), slug_field='slug'
     )
+    subcategory = serializers.SerializerMethodField()
     variant_slug = serializers.SerializerMethodField()
 
     class Meta:
@@ -26,23 +27,27 @@ class ProductsSerializer(serializers.ModelSerializer):
     def get_variant_slug(self, obj):
         return obj.variant.slug if obj.variant else None
 
+    def get_subcategory(self, obj):
+        return obj.subcategory
+
+
 
         
 class PreviewDetailsSerializer(serializers.ModelSerializer):
     category_id = serializers.PrimaryKeyRelatedField(
         queryset=MainPreview.objects.all(), source='category', write_only=True
     )
-
-    # Return category slug (for GET)
     category = serializers.SlugRelatedField(
         slug_field='category', read_only=True
     )
-    
-    subcategory = serializers.ChoiceField(choices=PreviewDetails.SUB_CATEGORY_CHOICES, read_only=True)
-    
+    subcategory = serializers.ChoiceField(
+        choices=SUB_CATEGORY_CHOICES, read_only=True
+    )
+
     class Meta:
         model = PreviewDetails
-        fields = "__all__" 
+        fields = "__all__"
+
 
 
 class HeroCarouselSerializer(serializers.ModelSerializer):
@@ -140,37 +145,34 @@ class LoginSerializer(serializers.Serializer):
 
 class CartItemSerializer(serializers.ModelSerializer):
     product = ProductsSerializer(read_only=True)
-    product_id = serializers.PrimaryKeyRelatedField(queryset=Products.objects.all(), write_only=True)
-    total_price = serializers.SerializerMethodField()
+    product_id = serializers.PrimaryKeyRelatedField(
+        queryset=Products.objects.all(), source='product', write_only=True
+    )
 
     class Meta:
         model = CartItem
-        fields = ['id', 'product', 'product_id', 'quantity', 'total_price']
+        fields = ['id', 'product', 'product_id', 'quantity', 'cart']
 
-    def get_total_price(self, obj):
-        return obj.total_price()
 
-    def create(self, validated_data):
-        product = validated_data.pop('product_id')
-        cart = self.context['cart']
-        cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product)
-        if not created:
-            cart_item.quantity += validated_data.get('quantity', 1)
-        else:
-            cart_item.quantity = validated_data.get('quantity', 1)
-        cart_item.save()
-        return cart_item
 
 class CartSerializer(serializers.ModelSerializer):
-    items = CartItemSerializer(many=True)
+    cart_items = CartItemSerializer(many=True, read_only=True)
     total_price = serializers.SerializerMethodField()
+
+    # Automatically assign the current user if authenticated
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+
+    # Make session_key optional
+    session_key = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = Cart
-        fields = ['id', 'user', 'session_key', 'created_at', 'items', 'total_price']
+        fields = ['id', 'cart_items', 'total_price', 'user', 'session_key']
 
     def get_total_price(self, obj):
         return obj.total_price()
+
+
 
 
     

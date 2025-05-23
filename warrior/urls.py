@@ -19,7 +19,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
-from warrior_app.views import MainPreviewView, ProductsView, PreviewDetailsView,HeroCarouselView,ContactSupportViewSet,LoginView,RegisterView,CartViewSet,CartItemViewSet,OrderViewSet,FilterOptionsView
+from warrior_app.views import MainPreviewView, ProductsView, PreviewDetailsView,HeroCarouselView,ContactSupportViewSet,LoginView,RegisterView,CartView,CartItemView,OrderViewSet,FilterOptionsView,create_razorpay_order,ClearCartView
 
 router = DefaultRouter()
 
@@ -28,8 +28,8 @@ router.register('products', ProductsView, basename='products')
 router.register('preview_details', PreviewDetailsView, basename='preview_details')
 router.register('hero_carousel', HeroCarouselView, basename='hero_carousel')
 router.register('contact_support', ContactSupportViewSet, basename='contact_support')
-router.register('cart', CartViewSet, basename='cart')
-router.register('cart_item', CartItemViewSet, basename='cart_item')
+# router.register('cart', CartViewSet, basename='cart')
+# router.register('cart_item', CartItemViewSet, basename='cart_item')
 router.register('buy_now', OrderViewSet, basename='buy_now')
 
 
@@ -38,6 +38,12 @@ urlpatterns = [
     path('api/', include(router.urls)),
     path('api/register/', RegisterView.as_view(), name='register'),
     path('api/login/', LoginView.as_view(), name='login'),
-    path('api/filters/<str:category_slug>/', FilterOptionsView.as_view() , name='filter_options'),
+     path('api/cart/', CartView.as_view(), name='cart'),
+    path('api/cart_item/', CartItemView.as_view(), name='cart_item'),
+    path("api/cart_item/<int:pk>/", CartItemView.as_view()),
+     path("api/cart/clear/", ClearCartView.as_view()),
+    path('api/filters/<str:subcategory_slug>/', FilterOptionsView.as_view() , name='filter_options'),
+    path('api/create-razorpay-order/', create_razorpay_order),
+
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

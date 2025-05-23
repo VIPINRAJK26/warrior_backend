@@ -1,13 +1,14 @@
 from django.db import models
 from django.utils.text import slugify
 from django.contrib.auth.hashers import make_password
+
 # Create your models here.
 
 
 class User(models.Model):
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=30, unique=True)
-    password = models.CharField(max_length=128)  # Stores hashed passwords
+    password = models.CharField(max_length=128) 
     
     def set_password(self, raw_password):
         self.password = make_password(raw_password)
@@ -24,29 +25,31 @@ class MainPreview(models.Model):
         ("batteries", "Batteries"),
         ("ev_charger", "EV Charger"),
         ("water_purifier", "Water Purifier"),
+        ("li_ion_battery_inverter", "Lithium Ion Battery Inverter"),
     ]
     
-    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+    category = models.CharField(max_length=100, choices=CATEGORY_CHOICES)
     image = models.ImageField(upload_to='images/')
     
     def __str__(self):
         return self.category
     
     
-class PreviewDetails(models.Model):
     
-    SUB_CATEGORY_CHOICES= [
-        ("online_ups", "Online Ups"),
-        ("offline_ups", "Offline Ups"),
-        ("hkva_ups", "HKVA Ups"),
-        ("solar_ups", "Solar Ups"),
-        ("solar_panel", "Solar Panel"),
-        ("lithium_solar_inverter", "Lithium Solar Inverter"),
-        ("MPPTS", "MPPTS"),
-        ("tubular_batteries", "Tubular Batteries"),
-        ("solar_batteries", "Solar Batteries"),
-        ("lithium_ion_batteries", "Lithium Ion Batteries"),
-    ]
+SUB_CATEGORY_CHOICES= [
+    ("online_ups", "Online Ups"),
+    ("offline_ups", "Offline Ups"),
+    ("hkva_ups", "HKVA Ups"),
+    ("solar_ups", "Solar Ups"),
+    ("solar_panel", "Solar Panel"),
+    ("lithium_solar_inverter", "Lithium Solar Inverter"),
+    ("MPPTS", "MPPTS"),
+    ("tubular_batteries", "Tubular Batteries"),
+    ("solar_batteries", "Solar Batteries"),
+    ("lithium_ion_batteries", "Lithium Ion Batteries"),
+]
+    
+class PreviewDetails(models.Model):
     
     category = models.ForeignKey(MainPreview, on_delete=models.CASCADE)
     subcategory = models.CharField(max_length=100, choices=SUB_CATEGORY_CHOICES)
@@ -75,12 +78,12 @@ class PreviewDetails(models.Model):
 class Products(models.Model):
     
     MODEL_TYPE_CHOICES = [
-        ("BR", "BR"),
+        ("WR", "WR"),
         ("NG", "NG"),
     ]
     
     category = models.ForeignKey(MainPreview, on_delete=models.CASCADE )
-    subcategory = models.ForeignKey(PreviewDetails, on_delete=models.CASCADE , related_name='products_by_category' )
+    subcategory = models.CharField(max_length=100, choices=SUB_CATEGORY_CHOICES )
     variant=models.ForeignKey(PreviewDetails, on_delete=models.CASCADE,related_name='products_by_variant' )
     title=models.CharField(max_length=100)
     image=models.ImageField(upload_to='images/')
@@ -144,22 +147,22 @@ class Cart(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True, related_name='cart')
     session_key = models.CharField(max_length=40, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    items = models.ManyToManyField('Products', through='CartItem')
 
     def total_price(self):
-        return sum(item.total_price() for item in self.items.all())
+        return sum(item.total_price() for item in self.cart_items.all())
 
     def __str__(self):
         return f"{self.user.username}'s Cart" if self.user else f"Session Cart ({self.session_key})"
 
 
-
 class CartItem(models.Model):
-    cart = models.ForeignKey(Cart, related_name='items', on_delete=models.CASCADE)
-    product = models.ForeignKey(Products, on_delete=models.CASCADE)
+    cart = models.ForeignKey(Cart, related_name='cart_items', on_delete=models.CASCADE)
+    product = models.ForeignKey('Products', on_delete=models.PROTECT)
     quantity = models.PositiveIntegerField(default=1)
     
     class Meta:
-     unique_together = ('cart', 'product')
+        unique_together = ('cart', 'product')
 
     def total_price(self):
         return self.product.price * self.quantity

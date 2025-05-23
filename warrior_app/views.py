@@ -14,10 +14,15 @@ from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 import logging
 from decimal import Decimal
-
+import razorpay
+from django.conf import settings
+from rest_framework.decorators import api_view, permission_classes
+import pkg_resources
+from rest_framework.permissions import IsAuthenticated,AllowAny
+from django.views.decorators.csrf import csrf_exempt
 
 logger = logging.getLogger(__name__)
-
+ 
 
 # Create your views here.
 
@@ -33,21 +38,22 @@ class MainPreviewView(viewsets.ModelViewSet):
 # }
 
 SUB_CATEGORY_FILTERS = {
-    "online_ups": ['variant', 'va_rating', 'voltage_min', 'warranty', 'price'],
-    "offline_ups": ['variant', 'va_rating', 'voltage_min', 'warranty', 'price'],
-    "hkva_ups": ['variant', 'va_rating', 'voltage_min', 'warranty', 'price'],
-    "solar_ups": ['variant', 'va_rating', 'voltage_min', 'warranty', 'price'],
-    "solar_panel": ['product_series', 'voltage_min', 'wattage', 'price'],
-    "lithium_solar_inverter": ['variant', 'va_rating', 'voltage_min', 'warranty', 'price'],
-    "MPPTS": ['product_series', 'technology', 'product_type', 'voltage_min', 'panel_capacity', 'price'],
+    "online_ups": ['variant', 'va_rating', 'voltage', 'warranty', 'price'],
+    "offline_ups": ['variant', 'va_rating', 'voltage', 'warranty', 'price'],
+    "hkva_ups": ['variant', 'va_rating', 'voltage', 'warranty', 'price'],
+    "solar_ups": ['variant', 'va_rating', 'voltage', 'warranty', 'price'],
+    "solar_panel": ['product_series', 'voltage', 'wattage', 'price'],
+    "lithium_solar_inverter": ['variant', 'va_rating', 'voltage', 'warranty', 'price'],
+    "MPPTS": ['product_series', 'technology', 'product_type', 'voltage', 'panel_capacity', 'price'],
     "tubular_batteries": ['variant', 'product_type', 'Ah_rating', 'warranty', 'price', 'suitable_for'],
     "solar_batteries": ['variant', 'product_type', 'Ah_rating', 'warranty', 'price', 'suitable_for'],
     "lithium_ion_batteries": ['variant', 'product_type', 'Ah_rating', 'warranty', 'price', 'suitable_for'],
 }
 
+
 class FilterOptionsView(APIView):
-    def get(self, request, category_slug):
-        filters = SUB_CATEGORY_FILTERS.get(category_slug.lower(), [])
+    def get(self, request, subcategory_slug):
+        filters = SUB_CATEGORY_FILTERS.get(subcategory_slug.lower(), [])
         return Response({'filters': filters})
 
 
@@ -55,7 +61,6 @@ class ProductsFilter(filters.FilterSet):
     category = filters.CharFilter(field_name="category__category", lookup_expr="icontains")
     variant = filters.CharFilter(field_name="variant__variant_name", lookup_expr="icontains")
     price = filters.NumberFilter(field_name="price", lookup_expr="gte")
-    weight = filters.NumberFilter(field_name="weight", lookup_expr="lte")
     voltage = filters.NumberFilter(field_name="voltage", lookup_expr="lte")
     va_rating = filters.NumberFilter(field_name="va_rating", lookup_expr="gte")
     warranty = filters.CharFilter(field_name="warranty", lookup_expr="icontains")
@@ -68,7 +73,7 @@ class ProductsFilter(filters.FilterSet):
     class Meta:
         model = Products
         fields = [
-            'category', 'variant', 'price', 'weight', 'voltage',
+            'category', 'variant', 'price', 'voltage',
             'va_rating', 'warranty', 'product_series', 'wattage', 'product_type', 'Ah_rating', 'suitable_for'
         ]
 
@@ -139,80 +144,113 @@ class LoginView(APIView):
     
     
 def get_or_create_cart(request):
+    print("get_or_create_cart called")
     if request.user.is_authenticated:
+        print("Authenticated user:", request.user)
         cart, _ = Cart.objects.get_or_create(user=request.user)
         return cart
-
-    # Ensure the session exists (creates session_key if not)
-    if not request.session.session_key:
-        request.session.save()
-
-    session_key = request.session.session_key
-
-    # Reuse the session_key to get or create a single cart
+    session_key = request.data.get('session_key') or request.query_params.get('session_key')
+    print("Session key:", session_key)
+    if not session_key:
+        print("No session key found for anonymous user")
+        return None
     cart, _ = Cart.objects.get_or_create(session_key=session_key, user=None)
     return cart
 
 
 
 
-class CartViewSet(viewsets.ViewSet):
-    def list(self, request):
-        print("Session Key in Backend:", request.session.session_key)
+
+
+
+
+class CartView(APIView):
+    def get(self, request):
         cart = get_or_create_cart(request)
+        if not cart:
+            return Response({'error': 'Missing session_key'}, status=400)
+
         serializer = CartSerializer(cart)
         return Response(serializer.data)
 
 
-    @action(detail=False, methods=['post'])
-    def clear(self, request):
+
+class CartItemView(APIView):
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        print("CartItemView POST called")
         cart = get_or_create_cart(request)
-        cart.items.all().delete()
-        print("Session Key:", request.session.session_key)
-        print("Cart items:", cart.items.all())
-        return Response({'status': 'cart cleared'}, status=status.HTTP_200_OK)
+        if not cart:
+            print("Missing session_key or user not authenticated")
+            return Response({'error': 'Missing session_key'}, status=400)
 
+        product_id = request.data.get('product_id')
+        quantity = request.data.get('quantity', 1)
+        print(f"product_id: {product_id}, quantity: {quantity}")
 
-
-class CartItemViewSet(viewsets.ModelViewSet):
-    serializer_class = CartItemSerializer
-    permission_classes = []  # No auth required
-
-    def get_queryset(self):
-        cart = get_or_create_cart(self.request)
-        return cart.items.all()
-
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context['cart'] = get_or_create_cart(self.request)
-        return context
-
-    @action(detail=False, methods=['post'])
-    def add_to_cart(self, request):
-        cart = get_or_create_cart(request)
-        product_id = request.data.get('product')
-        quantity = int(request.data.get('quantity', 1))
+        if not product_id:
+            print("No product_id provided")
+            return Response({'error': 'Product ID is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             product = Products.objects.get(id=product_id)
         except Products.DoesNotExist:
-            return Response({'error': 'Product not found'}, status=status.HTTP_400_BAD_REQUEST)
+            print("Product not found")
+            return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        cart_item, created = CartItem.objects.get_or_create(
-            cart=cart, product=product, defaults={'quantity': quantity}
-        )
-
+        cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product)
         if not created:
-            cart_item.quantity += quantity
+            cart_item.quantity += int(quantity)
+        else:
+            cart_item.quantity = int(quantity)
+        cart_item.save()
+
+        serializer = CartItemSerializer(cart_item)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    
+    def patch(self, request, pk=None):
+        cart = get_or_create_cart(request)
+        if not cart:
+            return Response({'error': 'Missing session_key'}, status=400)
+
+        try:
+            cart_item = CartItem.objects.get(id=pk, cart=cart)
+        except CartItem.DoesNotExist:
+            return Response({'error': 'Cart item not found'}, status=404)
+
+        quantity = request.data.get('quantity')
+        if quantity is not None:
+            cart_item.quantity = quantity
             cart_item.save()
 
-        # **Check cart items right after saving**
-        print("Cart items AFTER adding:", cart.items.all())
+        serializer = CartItemSerializer(cart_item)
+        return Response(serializer.data)
+
+    def delete(self, request, pk=None):
+        cart = get_or_create_cart(request)
+        if not cart:
+            return Response({'error': 'Missing session_key'}, status=400)
+
+        try:
+            cart_item = CartItem.objects.get(id=pk, cart=cart)
+        except CartItem.DoesNotExist:
+            return Response({'error': 'Cart item not found'}, status=404)
+
+        cart_item.delete()
+        return Response({'success': 'Item removed'})
+
+class ClearCartView(APIView):
+    def post(self, request):
+        cart = get_or_create_cart(request)
+        if not cart:
+            return Response({'error': 'Missing session_key'}, status=400)
+
+        cart.cart_items.all().delete()
+        return Response({'message': 'Cart cleared successfully'}, status=200)
 
 
-        return Response(
-            CartItemSerializer(cart_item, context={'cart': cart}).data,
-            status=status.HTTP_201_CREATED)
 
 
 
@@ -224,9 +262,15 @@ class OrderViewSet(viewsets.ModelViewSet):
     # Custom action to place an order
     @action(detail=False, methods=['post'], url_path='place-order')
     def place_order(self, request):
-        """
-        Place an order by creating an Order instance with the provided data.
-        """
+        items = request.data.get('items')
+        if not items:
+            return Response({"error": "No items provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        required_fields = ['customer_name', 'customer_email', 'customer_phone', 'shipping_address', 'city', 'state', 'zip_code']
+        for field in required_fields:
+            if not request.data.get(field):
+                return Response({"error": f"{field} is required"}, status=status.HTTP_400_BAD_REQUEST)
+
         customer_name = request.data.get('customer_name')
         customer_email = request.data.get('customer_email')
         customer_phone = request.data.get('customer_phone')
@@ -234,21 +278,18 @@ class OrderViewSet(viewsets.ModelViewSet):
         city = request.data.get('city')
         state = request.data.get('state')
         zip_code = request.data.get('zip_code')
-        items = request.data.get('items')
 
-        # Initialize total_amount to 0
         total_amount = Decimal(0)
-        order_items = []
-
-        # Calculate total price for the order
         for item in items:
             product_id = item['product_id']
             quantity = item['quantity']
-            product = Products.objects.get(id=product_id)
-            total_amount += product.price * quantity
-            order_items.append(OrderItem(product=product, quantity=quantity))
+            try:
+                product = Products.objects.get(id=product_id)
+            except Products.DoesNotExist:
+                return Response({"error": f"Product with id {product_id} not found."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Create the order
+            total_amount += product.price * quantity
+
         order = BuyNow.objects.create(
             customer_name=customer_name,
             customer_email=customer_email,
@@ -260,11 +301,37 @@ class OrderViewSet(viewsets.ModelViewSet):
             total_amount=total_amount,
         )
 
-        # Create order items
-        for item in order_items:
-            item.order = order
-            item.save()
+        for item in items:
+            product = Products.objects.get(id=item['product_id'])
+            OrderItem.objects.create(
+                order=order,
+                product=product,
+                quantity=item['quantity']
+            )
 
-        # Return the created order data
         serializer = BuyNowSerializer(order)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    
+
+@csrf_exempt
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def create_razorpay_order(request):
+    client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+    amount = Decimal(request.data.get("amount", 0))
+    if amount <= 0:
+        return Response({"error": "Invalid amount"}, status=status.HTTP_400_BAD_REQUEST)
+    currency = "INR"
+
+    razorpay_order = client.order.create({
+        "amount": int(amount * 100),  
+        "currency": currency,
+        "payment_capture": 1
+    })
+
+    return Response({
+        "id": razorpay_order["id"],
+        "amount": razorpay_order["amount"],
+        "currency": razorpay_order["currency"]
+    }, status=status.HTTP_200_OK)

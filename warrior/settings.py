@@ -55,6 +55,11 @@ MIDDLEWARE = [
 ]
 
 
+RAZORPAY_KEY_ID = "rzp_live_Z6jI1bIiHzukH6"
+RAZORPAY_KEY_SECRET = "VDvlD0RkR2iXTentmgRyjLWn"
+
+
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',  # ✅ Use JWT auth
@@ -63,17 +68,13 @@ REST_FRAMEWORK = {
 }
 
 
-AUTHENTICATION_BACKENDS = [
-    'warrior_app.backends.CustomAuthBackend',  # Your custom backend
-    'django.contrib.auth.backends.ModelBackend',  # Optional: fallback to default
-]
 
 
 
 CORS_ALLOW_ALL_ORIGINS = False
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5174",  # or whatever your frontend runs on
+    "http://localhost:5173",  # or whatever your frontend runs on
 ]
 
 CORS_ALLOW_METHODS = (
@@ -98,6 +99,7 @@ CORS_ALLOW_HEADERS = (
     'origin',
 )
 
+CORS_ALLOW_ALL_ORIGINS = True
 
 ROOT_URLCONF = 'warrior.urls'
 
