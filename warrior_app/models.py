@@ -20,12 +20,13 @@ class User(models.Model):
 class MainPreview(models.Model):
     
     CATEGORY_CHOICES= [
-        ("home_ups", "Home Ups"),
+        ("home_inverter_and_ups", "Home Inverter/Ups"),
+        ("lithium_inverter_and_ups", "Lithium Inverter/Ups"),
         ("solar_power", "Solar Power"),
         ("batteries", "Batteries"),
+        ("li_ion_batteries", "Lithium Ion Batteries"),
         ("ev_charger", "EV Charger"),
         ("water_purifier", "Water Purifier"),
-        ("li_ion_battery_inverter", "Lithium Ion Battery Inverter"),
     ]
     
     category = models.CharField(max_length=100, choices=CATEGORY_CHOICES)
@@ -35,10 +36,9 @@ class MainPreview(models.Model):
         return self.category
     
     
-    
 SUB_CATEGORY_CHOICES= [
-    ("online_ups", "Online Ups"),
-    ("offline_ups", "Offline Ups"),
+    ("online_inverter_and_ups", "Online Inverter/Ups"),
+    ("offline_inverter_and_ups", "Offline Inverter/Ups"),
     ("hkva_ups", "HKVA Ups"),
     ("solar_ups", "Solar Ups"),
     ("solar_panel", "Solar Panel"),
@@ -59,6 +59,7 @@ class PreviewDetails(models.Model):
     feature1 = models.CharField(max_length=100)
     feature2 = models.TextField()
     image = models.ImageField(upload_to='images/')
+    brochure = models.FileField(upload_to='brochures/', null=True, blank=True)
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -96,11 +97,12 @@ class Products(models.Model):
     weight=models.FloatField(default=0)
     voltage=models.FloatField(default=0)
     dimensions=models.CharField(max_length=100,default=0)
-    features=models.TextField(default=0)
-    description=models.TextField(default=0)
-    additional_info=models.TextField(default=0)
-    technical_spec=models.TextField(default=0)
+    features=models.TextField(null=True,blank=True)
+    description=models.TextField(null=True,blank=True)
+    additional_info=models.TextField(null=True,blank=True)
+    technical_spec=models.TextField(null=True,blank=True)
     new_arrival=models.BooleanField(default=False)
+    
     # newly added for filter
     va_rating =models.FloatField(default=0, null=True, blank=True)
     warranty = models.CharField(max_length=100, default=0, null=True, blank=True)

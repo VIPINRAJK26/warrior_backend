@@ -20,6 +20,8 @@ from rest_framework.decorators import api_view, permission_classes
 import pkg_resources
 from rest_framework.permissions import IsAuthenticated,AllowAny
 from django.views.decorators.csrf import csrf_exempt
+from django.http import FileResponse, Http404
+import os
 
 logger = logging.getLogger(__name__)
  
@@ -31,15 +33,10 @@ class MainPreviewView(viewsets.ModelViewSet):
     queryset = MainPreview.objects.all()
     serializer_class = MainPreviewSerializer
     
-# CATEGORY_FILTERS = {
-#     'home_ups': ['variant', 'va_rating', 'voltage', 'warranty', 'price'],
-#     'solar_power': ['variant', 'sku', 'input_voltage_range', 'output_power'],
-#     'batteries': ['variant', 'sku', 'price', 'weight', 'voltage'],
-# }
 
 SUB_CATEGORY_FILTERS = {
-    "online_ups": ['variant', 'va_rating', 'voltage', 'warranty', 'price'],
-    "offline_ups": ['variant', 'va_rating', 'voltage', 'warranty', 'price'],
+    "online_inverter_and_ups": ['variant', 'va_rating', 'voltage', 'warranty', 'price'],
+    "offline_inverter_and_ups": ['variant', 'va_rating', 'voltage', 'warranty', 'price'],
     "hkva_ups": ['variant', 'va_rating', 'voltage', 'warranty', 'price'],
     "solar_ups": ['variant', 'va_rating', 'voltage', 'warranty', 'price'],
     "solar_panel": ['product_series', 'voltage', 'wattage', 'price'],
@@ -138,14 +135,32 @@ class LoginView(APIView):
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        print(self.request.user)
+
+        user = serializer.user  # Now this works
+        print("Logged in user:", user)
+        print("RESPONSE DATA:", serializer.validated_data)
         return Response(serializer.validated_data)
+
     
+    
+def brochure_view(request, filename):
+    # Construct the full file path
+    file_path = os.path.join(settings.MEDIA_ROOT, 'brochures', filename)
+    
+    if not os.path.exists(file_path):
+        raise Http404("Brochure not found")
+
+    response = FileResponse(open(file_path, 'rb'), content_type='application/pdf')
+    
+    # Allow this response to be embedded in iframe
+    response['X-Frame-Options'] = 'ALLOWALL'
+    return response
     
     
 def get_or_create_cart(request):
     print("get_or_create_cart called")
     if request.user.is_authenticated:
+        print(f"Request user: {request.user}, Type: {type(request.user)}")
         print("Authenticated user:", request.user)
         cart, _ = Cart.objects.get_or_create(user=request.user)
         return cart
@@ -159,11 +174,6 @@ def get_or_create_cart(request):
 
 
 
-
-
-
-
-
 class CartView(APIView):
     def get(self, request):
         cart = get_or_create_cart(request)
@@ -173,6 +183,36 @@ class CartView(APIView):
         serializer = CartSerializer(cart)
         return Response(serializer.data)
 
+
+class CartMergeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        session_key = request.data.get("session_key")
+        if not session_key:
+            return Response({"detail": "Session key is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            anon_cart = Cart.objects.get(session_key=session_key, user=None)
+        except Cart.DoesNotExist:
+            return Response({"detail": "Anonymous cart not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Get or create the authenticated user's cart
+        user_cart, _ = Cart.objects.get_or_create(user=request.user)
+
+        # Merge logic: add items from anon_cart to user_cart
+        for item in anon_cart.cartitem_set.all():
+            user_item, created = user_cart.cartitem_set.get_or_create(product=item.product)
+            if not created:
+                user_item.quantity += item.quantity
+            else:
+                user_item.quantity = item.quantity
+            user_item.save()
+
+        # Delete anonymous cart after merging
+        anon_cart.delete()
+
+        return Response({"detail": "Cart merged successfully"}, status=status.HTTP_200_OK)
 
 
 class CartItemView(APIView):

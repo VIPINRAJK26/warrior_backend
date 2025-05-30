@@ -54,9 +54,12 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+X_FRAME_OPTIONS = 'SAMEORIGIN'
 
-RAZORPAY_KEY_ID = "rzp_live_Z6jI1bIiHzukH6"
-RAZORPAY_KEY_SECRET = "VDvlD0RkR2iXTentmgRyjLWn"
+
+
+RAZORPAY_KEY_ID = "rzp_test_vZgJpbqphSEyOk"
+RAZORPAY_KEY_SECRET = "Hgm8y9Yp2uOxGbdlmfdAqK7B"
 
 
 
