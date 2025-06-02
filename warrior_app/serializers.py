@@ -61,10 +61,7 @@ class ContactSupportSerializer(serializers.ModelSerializer):
         model = ContactSupport
         fields = "__all__"
         
-        
-        
 # accounts/serializers.py
-
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(

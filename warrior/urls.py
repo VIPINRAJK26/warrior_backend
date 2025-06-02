@@ -45,7 +45,7 @@ urlpatterns = [
     path("api/cart/merge/", CartMergeView.as_view()),
     path('api/filters/<str:subcategory_slug>/', FilterOptionsView.as_view() , name='filter_options'),
     path('api/create-razorpay-order/', create_razorpay_order),
-    path('brochures/<str:filename>', brochure_view, name='brochure_view'),
+    path('api/brochures/<str:filename>', brochure_view, name='brochure_view'),
 
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

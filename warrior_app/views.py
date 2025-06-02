@@ -24,7 +24,7 @@ from django.http import FileResponse, Http404
 import os
 
 logger = logging.getLogger(__name__)
- 
+
 
 # Create your views here.
 
