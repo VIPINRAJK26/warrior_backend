@@ -19,7 +19,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
-from warrior_app.views import MainPreviewView, ProductsView, PreviewDetailsView,HeroCarouselView,ContactSupportViewSet,LoginView,RegisterView,CartView,CartItemView,OrderViewSet,FilterOptionsView,create_razorpay_order,ClearCartView,CartMergeView,brochure_view
+from warrior_app.views import MainPreviewView, ProductsView, PreviewDetailsView,HeroCarouselView,ContactSupportViewSet,LoginView,RegisterView,CartView,CartItemView,OrderViewSet,FilterOptionsView,create_razorpay_order,ClearCartView,CartMergeView,brochure_view,UserOrdersViewset
 
 router = DefaultRouter()
 
@@ -31,6 +31,8 @@ router.register('contact_support', ContactSupportViewSet, basename='contact_supp
 # router.register('cart', CartViewSet, basename='cart')
 # router.register('cart_item', CartItemViewSet, basename='cart_item')
 router.register('buy_now', OrderViewSet, basename='buy_now')
+router.register('user_orders', UserOrdersViewset, basename='user_orders')
+
 
 
 urlpatterns = [
@@ -46,6 +48,7 @@ urlpatterns = [
     path('api/filters/<str:subcategory_slug>/', FilterOptionsView.as_view() , name='filter_options'),
     path('api/create-razorpay-order/', create_razorpay_order),
     path('api/brochures/<str:filename>', brochure_view, name='brochure_view'),
+    
 
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

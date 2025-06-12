@@ -1,6 +1,6 @@
 from rest_framework import viewsets
-from .serializers import MainPreviewSerializer, ProductsSerializer, PreviewDetailsSerializer, HeroCarouselSerializer,ContactSupportSerializer,LoginSerializer,RegisterSerializer,CartItemSerializer,CartSerializer,BuyNowSerializer,OrderItemSerializer
-from .models import MainPreview, Products, PreviewDetails,HeroCarousel,ContactSupport,Cart,CartItem,BuyNow,OrderItem
+from .serializers import MainPreviewSerializer, ProductsSerializer, PreviewDetailsSerializer, HeroCarouselSerializer,ContactSupportSerializer,LoginSerializer,RegisterSerializer,CartItemSerializer,CartSerializer,BuyNowSerializer,OrderItemSerializer,InvoiceSerializer
+from .models import MainPreview, Products, PreviewDetails,HeroCarousel,ContactSupport,Cart,CartItem,BuyNow,OrderItem,Invoice
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters import rest_framework as filters
@@ -15,13 +15,16 @@ from rest_framework import serializers
 import logging
 from decimal import Decimal
 import razorpay
+from django.core.files.base import ContentFile
 from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
 import pkg_resources
 from rest_framework.permissions import IsAuthenticated,AllowAny
 from django.views.decorators.csrf import csrf_exempt
 from django.http import FileResponse, Http404
+from warrior_app.utils import generate_invoice_pdf
 import os
+
 
 logger = logging.getLogger(__name__)
 
@@ -35,16 +38,18 @@ class MainPreviewView(viewsets.ModelViewSet):
     
 
 SUB_CATEGORY_FILTERS = {
-    "online_inverter_and_ups": ['variant', 'va_rating', 'voltage', 'warranty', 'price'],
-    "offline_inverter_and_ups": ['variant', 'va_rating', 'voltage', 'warranty', 'price'],
-    "hkva_ups": ['variant', 'va_rating', 'voltage', 'warranty', 'price'],
+    "online_inverter_and_ups": ['variant', 'va_rating', 'voltage', 'warranty','wattage', 'price',],
+    "offline_inverter_and_ups": ['variant', 'va_rating', 'voltage', 'warranty','wattage', 'price'],
+    "hkva_ups": ['variant', 'va_rating', 'voltage', 'warranty','wattage', 'price'],
+    "avr_ups": ['variant', 'va_rating', 'voltage', 'warranty', 'wattage','price'],
     "solar_ups": ['variant', 'va_rating', 'voltage', 'warranty', 'price'],
     "solar_panel": ['product_series', 'voltage', 'wattage', 'price'],
     "lithium_solar_inverter": ['variant', 'va_rating', 'voltage', 'warranty', 'price'],
     "MPPTS": ['product_series', 'technology', 'product_type', 'voltage', 'panel_capacity', 'price'],
-    "tubular_batteries": ['variant', 'product_type', 'Ah_rating', 'warranty', 'price', 'suitable_for'],
-    "solar_batteries": ['variant', 'product_type', 'Ah_rating', 'warranty', 'price', 'suitable_for'],
-    "lithium_ion_batteries": ['variant', 'product_type', 'Ah_rating', 'warranty', 'price', 'suitable_for'],
+    "tubular_batteries": ['variant', 'product_type', 'Ah_rating', 'warranty', 'suitable_for','price', ],
+    "solar_batteries": ['variant', 'product_type', 'Ah_rating', 'warranty','suitable_for', 'price'],
+    "lithium_ion_batteries": ['variant', 'product_type', 'Ah_rating', 'warranty', 'suitable_for','price'],
+    "lithium_batteries": ['variant', 'product_type', 'Ah_rating', 'warranty', 'suitable_for','price'],
 }
 
 
@@ -129,6 +134,7 @@ class RegisterView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         print(self.request.user)
+        print("user created")
         return Response({"message": "User created"}, status=201)
 
 class LoginView(APIView):
@@ -136,8 +142,8 @@ class LoginView(APIView):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        user = serializer.user  # Now this works
-        print("Logged in user:", user)
+        user = serializer.user 
+        print("Logged in user from serializer:", user)
         print("RESPONSE DATA:", serializer.validated_data)
         return Response(serializer.validated_data)
 
@@ -154,6 +160,7 @@ def brochure_view(request, filename):
     
     # Allow this response to be embedded in iframe
     response['X-Frame-Options'] = 'ALLOWALL'
+    
     return response
     
     
@@ -201,15 +208,14 @@ class CartMergeView(APIView):
         user_cart, _ = Cart.objects.get_or_create(user=request.user)
 
         # Merge logic: add items from anon_cart to user_cart
-        for item in anon_cart.cartitem_set.all():
-            user_item, created = user_cart.cartitem_set.get_or_create(product=item.product)
+        for item in anon_cart.cart_items.all():
+            user_item, created = user_cart.cart_items.get_or_create(product=item.product)
             if not created:
                 user_item.quantity += item.quantity
             else:
                 user_item.quantity = item.quantity
             user_item.save()
 
-        # Delete anonymous cart after merging
         anon_cart.delete()
 
         return Response({"detail": "Cart merged successfully"}, status=status.HTTP_200_OK)
@@ -281,6 +287,7 @@ class CartItemView(APIView):
         cart_item.delete()
         return Response({'success': 'Item removed'})
 
+
 class ClearCartView(APIView):
     def post(self, request):
         cart = get_or_create_cart(request)
@@ -296,10 +303,12 @@ class ClearCartView(APIView):
 
     
 class OrderViewSet(viewsets.ModelViewSet):
-    queryset = BuyNow.objects.all()
     serializer_class = BuyNowSerializer
+    permission_classes = [IsAuthenticated]
 
-    # Custom action to place an order
+    def get_queryset(self):
+        return BuyNow.objects.filter(user=self.request.user).order_by('-created_at')
+    
     @action(detail=False, methods=['post'], url_path='place-order')
     def place_order(self, request):
         items = request.data.get('items')
@@ -330,7 +339,9 @@ class OrderViewSet(viewsets.ModelViewSet):
 
             total_amount += product.price * quantity
 
+        # Create order
         order = BuyNow.objects.create(
+            user=request.user,
             customer_name=customer_name,
             customer_email=customer_email,
             customer_phone=customer_phone,
@@ -341,6 +352,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             total_amount=total_amount,
         )
 
+        # Add order items
         for item in items:
             product = Products.objects.get(id=item['product_id'])
             OrderItem.objects.create(
@@ -349,9 +361,22 @@ class OrderViewSet(viewsets.ModelViewSet):
                 quantity=item['quantity']
             )
 
+        # Generate invoice number
+        invoice_number = f"INV{order.id:05d}"
+
+        # Create invoice entry
+        invoice = Invoice.objects.create(order=order, invoice_number=invoice_number)
+
+        # Generate PDF and attach
+        try:
+            pdf_file = generate_invoice_pdf(order, invoice_number)
+            invoice.invoice_file.save(f"{invoice_number}.pdf", ContentFile(pdf_file.read()))
+            invoice.save()
+        except Exception as e:
+            print("Invoice generation failed:", str(e))
+
         serializer = BuyNowSerializer(order)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-
     
 
 @csrf_exempt
@@ -375,3 +400,31 @@ def create_razorpay_order(request):
         "amount": razorpay_order["amount"],
         "currency": razorpay_order["currency"]
     }, status=status.HTTP_200_OK)
+
+
+class UserOrdersViewset(viewsets.ModelViewSet):
+    queryset = BuyNow.objects.all()
+    serializer_class = BuyNowSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return BuyNow.objects.filter(user=self.request.user).order_by('-created_at')
+    
+    @action(detail=False, methods=['get'], url_path='undelivered_count')
+    def undelivered_count(self, request):
+        print("Undelivered count endpoint HIT")
+        print("Request user:", request.user)
+
+        orders = BuyNow.objects.filter(user=request.user)
+        print("Orders for user:", orders)
+
+        undelivered_orders = orders.exclude(status='delivered')
+        print("Undelivered orders:", undelivered_orders)
+
+        count = undelivered_orders.count()
+        print(count, "count----------------------------------")
+
+        return Response({'count': count})
+    
+    
+    

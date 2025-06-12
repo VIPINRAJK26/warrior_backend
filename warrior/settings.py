@@ -31,13 +31,13 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'warrior_app',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'warrior_app',
     'rest_framework',
     'corsheaders',
     'rest_framework_simplejwt',
@@ -51,10 +51,13 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # 'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-X_FRAME_OPTIONS = 'SAMEORIGIN'
+# X_FRAME_OPTIONS = 'SAMEORIGIN'
+
+X_FRAME_OPTIONS = 'ALLOWALL'
+
 
 
 RAZORPAY_KEY_ID = "rzp_test_vZgJpbqphSEyOk"
@@ -63,8 +66,8 @@ RAZORPAY_KEY_SECRET = "Hgm8y9Yp2uOxGbdlmfdAqK7B"
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',  # ✅ Use JWT auth
-        'rest_framework.authentication.SessionAuthentication',         # Optional
+        'rest_framework_simplejwt.authentication.JWTAuthentication',  
+        'rest_framework.authentication.SessionAuthentication',       
     )
 }
 
@@ -180,6 +183,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTHENTICATION_BACKENDS = ['warrior_app.backends.CustomAuthBackend',
                            'django.contrib.auth.backends.ModelBackend',]
 
+
+AUTH_USER_MODEL = 'warrior_app.User'
 
 from datetime import timedelta
 

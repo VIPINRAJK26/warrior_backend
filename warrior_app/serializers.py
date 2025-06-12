@@ -1,7 +1,10 @@
 from rest_framework import serializers
-from warrior_app.models import MainPreview, Products, PreviewDetails, HeroCarousel,ContactSupport,User,Cart,CartItem,BuyNow,OrderItem,SUB_CATEGORY_CHOICES
+from warrior_app.models import MainPreview, Products, PreviewDetails, HeroCarousel,ContactSupport,Cart,CartItem,BuyNow,OrderItem,SUB_CATEGORY_CHOICES,Invoice
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 
 
@@ -43,6 +46,8 @@ class PreviewDetailsSerializer(serializers.ModelSerializer):
     subcategory = serializers.ChoiceField(
         choices=SUB_CATEGORY_CHOICES, read_only=True
     )
+    
+    slug = serializers.ReadOnlyField()
 
     class Meta:
         model = PreviewDetails
@@ -115,21 +120,26 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
 
-# serializers.py
+
 
 class LoginSerializer(serializers.Serializer):
     username_or_email = serializers.CharField()
     password = serializers.CharField(write_only=True)
 
     def validate(self, data):
-        user = authenticate(
-            username=data['username_or_email'],
-            password=data['password']
-        )
+        identifier = data['username_or_email']
+        password = data['password']
+
+        # Try to get user by email first, then username
+        user = User.objects.filter(email__iexact=identifier).first()
         if not user:
+            user = User.objects.filter(username__iexact=identifier).first()
+
+        if not user or not user.check_password(password):
             raise serializers.ValidationError("Invalid credentials")
 
-        self.user = user 
+        # ✅ Set user on the serializer instance for view access
+        self.user = user
 
         refresh = RefreshToken.for_user(user)
         return {
@@ -137,7 +147,8 @@ class LoginSerializer(serializers.Serializer):
             'refresh': str(refresh),
             'user': {
                 'id': user.id,
-                'email': user.email
+                'email': user.email,
+                'username': user.username,
             }
         }
 
@@ -173,17 +184,35 @@ class CartSerializer(serializers.ModelSerializer):
         return obj.total_price()
 
 
-
-
-    
-    
-class BuyNowSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BuyNow
-        fields = "__all__"
-        
-
 class OrderItemSerializer(serializers.ModelSerializer):
+    product = ProductsSerializer(read_only=True) 
     class Meta:
         model = OrderItem
+        fields = ['id', 'product', 'quantity']
+    
+    
+    
+    
+class InvoiceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Invoice
         fields = "__all__"
+        
+        
+class BuyNowSerializer(serializers.ModelSerializer):
+    items = OrderItemSerializer(many=True, read_only=True)
+    invoice = InvoiceSerializer(read_only=True)
+
+
+    class Meta:
+        model = BuyNow
+        fields = [
+            'id', 'customer_name', 'customer_email', 'customer_phone',
+            'shipping_address', 'city', 'state', 'zip_code',
+            'total_amount', 'created_at', 'items','status', 'est_delivery', 'invoice'
+        ]
+
+
+
+        
+

@@ -1,21 +1,20 @@
 from django.db import models
 from django.utils.text import slugify
-from django.contrib.auth.hashers import make_password
+from django.contrib.auth.models import AbstractUser
+from django.conf import settings
+
 
 # Create your models here.
 
-
-class User(models.Model):
+class User(AbstractUser):
     email = models.EmailField(unique=True)
-    username = models.CharField(max_length=30, unique=True)
-    password = models.CharField(max_length=128) 
-    
-    def set_password(self, raw_password):
-        self.password = make_password(raw_password)
-    
-    def check_password(self, raw_password):
-        from django.contrib.auth.hashers import check_password
-        return check_password(raw_password, self.password)
+
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username'] 
+
+    def __str__(self):
+        return self.email
+
 
 class MainPreview(models.Model):
     
@@ -40,6 +39,7 @@ SUB_CATEGORY_CHOICES= [
     ("online_inverter_and_ups", "Online Inverter/Ups"),
     ("offline_inverter_and_ups", "Offline Inverter/Ups"),
     ("hkva_ups", "HKVA Ups"),
+    ("avr_ups", "AVR Ups"),
     ("solar_ups", "Solar Ups"),
     ("solar_panel", "Solar Panel"),
     ("lithium_solar_inverter", "Lithium Solar Inverter"),
@@ -47,7 +47,9 @@ SUB_CATEGORY_CHOICES= [
     ("tubular_batteries", "Tubular Batteries"),
     ("solar_batteries", "Solar Batteries"),
     ("lithium_ion_batteries", "Lithium Ion Batteries"),
+    ("lithium_batteries", "Lithium Batteries"),
 ]
+    
     
 class PreviewDetails(models.Model):
     
@@ -60,7 +62,7 @@ class PreviewDetails(models.Model):
     feature2 = models.TextField()
     image = models.ImageField(upload_to='images/')
     brochure = models.FileField(upload_to='brochures/', null=True, blank=True)
-
+  
     def save(self, *args, **kwargs):
         if not self.slug:
             base_slug = slugify(self.variant_name)
@@ -146,7 +148,7 @@ class ContactSupport(models.Model):
 
 
 class Cart(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True, related_name='cart')
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True, related_name='cart')
     session_key = models.CharField(max_length=40, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     items = models.ManyToManyField('Products', through='CartItem')
@@ -174,6 +176,13 @@ class CartItem(models.Model):
     
     
 class BuyNow(models.Model):
+    
+    STATUS_CHOICES = [
+        ('ordered', 'Ordered'),
+        ('shipped', 'Shipped'),
+        ('delivered', 'Delivered'),
+    ]
+    user = models.ForeignKey(User, on_delete=models.CASCADE,related_name='orders')
     customer_name = models.CharField(max_length=255)
     customer_email = models.EmailField()
     customer_phone = models.CharField(max_length=20)
@@ -183,10 +192,12 @@ class BuyNow(models.Model):
     zip_code = models.CharField(max_length=10)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ordered')
+    est_delivery = models.DateField(null=True, blank=True)
 
     def __str__(self):
-        return f"Order {self.id}"
-
+        return f"Order #{self.customer_name} - {self.status}"
+    
 class OrderItem(models.Model):
     order = models.ForeignKey(BuyNow, related_name='items', on_delete=models.CASCADE)
     product = models.ForeignKey(Products, on_delete=models.CASCADE)
@@ -194,4 +205,20 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return f"Item {self.product.title} in Order {self.order.id}"
+    
+    
+class Invoice(models.Model):
+    order = models.OneToOneField('BuyNow', on_delete=models.CASCADE)
+    invoice_number = models.CharField(max_length=20, unique=True)
+    invoice_file = models.FileField(upload_to='invoices/')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"Invoice {self.invoice_number} for Order {self.order.id}"
+    
+    def get_url(self):
+        if self.invoice_file:
+            return self.invoice_file.url
+        return None
+    
     
