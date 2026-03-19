@@ -1,6 +1,6 @@
 from rest_framework import viewsets
-from .serializers import MainPreviewSerializer, ProductsSerializer, PreviewDetailsSerializer, HeroCarouselSerializer,ContactSupportSerializer,LoginSerializer,RegisterSerializer,CartItemSerializer,CartSerializer,BuyNowSerializer,OrderItemSerializer,InvoiceSerializer
-from .models import MainPreview, Products, PreviewDetails,HeroCarousel,ContactSupport,Cart,CartItem,BuyNow,OrderItem,Invoice
+from .serializers import *
+from .models import *
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters import rest_framework as filters
@@ -8,23 +8,19 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.core.mail import send_mail
 from rest_framework import status
 from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
-from django.shortcuts import get_object_or_404
-from rest_framework import serializers
 import logging
 from decimal import Decimal
 import razorpay
 from django.core.files.base import ContentFile
 from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
-import pkg_resources
 from rest_framework.permissions import IsAuthenticated,AllowAny
 from django.views.decorators.csrf import csrf_exempt
 from django.http import FileResponse, Http404
 from warrior_app.utils import generate_invoice_pdf
 import os
-
+from .email import send_admin_warranty_email,send_user_warranty_email
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +219,7 @@ class CartMergeView(APIView):
 
 class CartItemView(APIView):
     permission_classes = [AllowAny]
-    
+
     def post(self, request):
         print("CartItemView POST called")
         cart = get_or_create_cart(request)
@@ -299,9 +295,6 @@ class ClearCartView(APIView):
 
 
 
-
-
-    
 class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = BuyNowSerializer
     permission_classes = [IsAuthenticated]
@@ -412,19 +405,53 @@ class UserOrdersViewset(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'], url_path='undelivered_count')
     def undelivered_count(self, request):
-        print("Undelivered count endpoint HIT")
-        print("Request user:", request.user)
 
         orders = BuyNow.objects.filter(user=request.user)
-        print("Orders for user:", orders)
 
         undelivered_orders = orders.exclude(status='delivered')
-        print("Undelivered orders:", undelivered_orders)
 
         count = undelivered_orders.count()
-        print(count, "count----------------------------------")
 
         return Response({'count': count})
     
+    
+    
+@csrf_exempt
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def warrenty_registration(request):
+    serializer = WarrentyRegistrationSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    registration = serializer.save()
+    send_admin_warranty_email(registration)
+    send_user_warranty_email(registration)
+    return Response(serializer.data, status=201)
+    
+    
+class DealerViewset(viewsets.ModelViewSet):
+    queryset = Dealer.objects.all()
+    serializer_class = DealerSerializer
+    
+    
+    
+class ModelNumberAndWarrentyViewset(viewsets.ModelViewSet):
+    queryset = ModelNumberAndWarrenty.objects.all()
+    serializer_class = ModelNumberAndWarrentySerializer
+    
+    
+class ProductTypeViewset(viewsets.ModelViewSet):
+    queryset = ProductType.objects.all()
+    serializer_class = ProductTypeSerializer
+    
+    
+class StateSelectionViewset(viewsets.ModelViewSet):
+    queryset = StateSelection.objects.all()
+    serializer_class = StateSelectionSerializer
+    
+    
+    
+class DistrictSelectionViewset(viewsets.ModelViewSet):
+    queryset = DistrictSelection.objects.all()
+    serializer_class = DistrictSelectionSerializer
     
     

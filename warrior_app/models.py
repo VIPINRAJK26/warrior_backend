@@ -137,14 +137,21 @@ class ContactSupport(models.Model):
         ('business', 'Business Enquiry'),
     ]
 
+    STATUS_CHOICES = [
+        ('new', 'New'),
+        ('in_progress', 'In Progress'),
+        ('resolved', 'Resolved'),
+    ]
+    
     support_type = models.CharField(max_length=20, choices=SUPPORT_CHOICES)
     name = models.CharField(max_length=100)
     email = models.EmailField()
     message = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='new')
 
     def __str__(self):
-        return f"{self.name} - {self.support_type}"
+        return f"{self.name} - {self.support_type} - {self.status}"
 
 
 class Cart(models.Model):
@@ -182,6 +189,7 @@ class BuyNow(models.Model):
         ('shipped', 'Shipped'),
         ('delivered', 'Delivered'),
     ]
+    
     user = models.ForeignKey(User, on_delete=models.CASCADE,related_name='orders')
     customer_name = models.CharField(max_length=255)
     customer_email = models.EmailField()
@@ -222,3 +230,74 @@ class Invoice(models.Model):
         return None
     
     
+
+class ModelNumberAndWarrenty(models.Model):
+    model_number = models.CharField(max_length=100)
+    warrenty = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return self.model_number
+
+
+class StateSelection(models.Model):
+    state = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return self.state
+
+
+class DistrictSelection(models.Model):
+    state = models.ForeignKey(StateSelection, on_delete=models.CASCADE)
+    district = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return self.district
+
+
+class Dealer(models.Model):
+    district = models.ForeignKey(DistrictSelection, on_delete=models.CASCADE,null=True,blank=True)
+    name = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return self.name
+
+
+class ProductType(models.Model):
+    product_type = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return self.product_type
+
+
+
+class WarrentyRegistration(models.Model):
+    name = models.CharField(max_length=100)
+    email = models.EmailField()
+    phone = models.CharField(max_length=10)
+
+    address = models.TextField()
+    state = models.CharField(max_length=100,null=True,blank=True)
+    district = models.CharField(max_length=100,null=True,blank=True)
+    pin_code = models.CharField(max_length=10,null=True,blank=True)
+
+    product_type = models.CharField(max_length=100,null=True,blank=True)
+
+    model_number = models.CharField(max_length=100)
+    serial_number = models.CharField(max_length=100)
+
+    purchase_date = models.DateField()
+
+    warranty_period_months = models.PositiveIntegerField(null=True,blank=True)
+    warranty_end_date = models.DateField(null=True,blank=True)
+
+    dealer = models.CharField(max_length=100,null=True,blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name

@@ -5,85 +5,78 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from io import BytesIO
 
 def generate_invoice_pdf(order, invoice_number):
+    """Generate PDF for the given order with a tailored format."""
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=20, leftMargin=20, topMargin=20, bottomMargin=20)
+    doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
 
     styles = getSampleStyleSheet()
     styleN = styles['Normal']
-    styleB = styles['BodyText']
-    styleH = styles['Heading2']
 
     elements = []
 
-    # Title & Header Info
-    elements.append(Paragraph("<b>Tax Invoice</b>", styleH))
-    elements.append(Spacer(1, 6))
-    elements.append(Paragraph(f"<b>Invoice No:</b> {invoice_number}", styleN))
-    elements.append(Paragraph(f"<b>Date:</b> {order.created_at.strftime('%d-%b-%Y')}", styleN))
+    # Title
+    elements.append(Paragraph("<b>Tax Invoice</b>", styles['Heading1']))
     elements.append(Spacer(1, 12))
+    elements.append(Paragraph(f"Invoice Number: {invoice_number}", styleN))
+    elements.append(Paragraph(f"Invoice Date: {order.created_at.date()}", styleN))
+    elements.append(Spacer(1, 24))
 
-    # Seller and Buyer Info
-    seller_info = [
-        "SMART ENTERPRISES",
+    # Seller (Hardcoded) 
+    seller = [
+        "<b>SMART ENTERPRISES</b>",
         "11/505C, MULLAMPARA MANJERI",
-        "MALAPPURAM, PIN:676121",
-        "GSTIN/UIN: 32ALSPY4534A1ZO",
-        "State Name: Kerala, Code: 32"
+        "MALAPPURAM, PIN: 676121",
+        "GSTIN: 32ALSPY4534A1ZO",
+        "State: Kerala, Code: 32"
     ]
-    buyer_info = [
-        order.customer_name.upper(),
-        f"{order.shipping_address}",
+    for s in seller:
+        elements.append(Paragraph(s, styleN))
+    elements.append(Spacer(1, 24))
+
+    # Customer
+    buyer = [
+        "<b>Billed To</b>",
+        order.customer_name,
+        order.shipping_address,
         f"{order.city}, {order.state}, {order.zip_code}",
-        f"Phone: {order.customer_phone}",
-        f"Email: {order.customer_email}"
+        f"phone: {order.customer_phone}",
+        f"email: {order.customer_email}",
     ]
-    seller = [[Paragraph("<b>Seller (From)</b>", styleB)]] + [[Paragraph(x, styleN)] for x in seller_info]
-    buyer = [[Paragraph("<b>Buyer (To)</b>", styleB)]] + [[Paragraph(x, styleN)] for x in buyer_info]
+    for b in buyer:
+        elements.append(Paragraph(b, styleN))
+    elements.append(Spacer(1, 24))
 
-    table = Table([[Table(seller), Table(buyer)]], colWidths=[270, 270])
-    elements.append(table)
-    elements.append(Spacer(1, 12))
-
-    # Items Table
-    data = [['Sl No.', 'Description of Goods', 'HSN/SAC', 'Quantity', 'Rate', 'per', 'Disc. %', 'Amount']]
-    total = 0
+    # Items table
+    data = [['Sl', 'Description','Model No.', 'Qty', 'Unit Rate', 'Total']]
     for i, item in enumerate(order.items.all(), start=1):
         qty = item.quantity
-        price = item.product.price
-        subtotal = qty * price
-        total += subtotal
-        data.append([
-            str(i),
-            item.product.title,
-            "85044010",
-            f"{qty:.3f} Pcs",
-            f"{price:.2f}",
-            "Pcs",
-            "0",
-            f"{subtotal:.2f}"
-        ])
+        model=item.product.model_number
+        rate = item.product.price
+        total = qty * rate
+        data.append([str(i), item.product.title, model, str(qty) ,f"{rate:.2f}", f"{total:.2f}"])
+        
+    
 
-    # GST & Total
-    cgst = total * 0.09
-    grand_total = total + cgst
-    data.append(["", "", "", "", "", "", "CGST 9%", f"{cgst:.2f}"])
-    data.append(["", "", "", "", "", "", "<b>Total</b>", f"<b>{grand_total:.2f}</b>"])
-
-    table = Table(data, colWidths=[35, 160, 65, 65, 65, 40, 55, 75])
+    table = Table(data, colWidths=[30, 200, 90, 50, 60, 60])
     table.setStyle(TableStyle([
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
         ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
     ]))
-
     elements.append(table)
     elements.append(Spacer(1, 12))
-    elements.append(Paragraph("This is a Computer Generated Invoice", styles['Italic']))
+    elements.append(Paragraph("18% GST is included in this total price.", styleN))
+    elements.append(Spacer(1, 24))
+
+    elements.append(Spacer(1, 24))
+    elements.append(Paragraph("This is a computer generated Invoice.", styles['Italic']))
+    elements.append(Paragraph("Original Invoice will be provided at the time of delivery.", styles['Italic']))
 
     doc.build(elements)
-    buffer.seek(0)
+
+    buffer.seek(0)  # move back to start
     return buffer

@@ -19,7 +19,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
-from warrior_app.views import MainPreviewView, ProductsView, PreviewDetailsView,HeroCarouselView,ContactSupportViewSet,LoginView,RegisterView,CartView,CartItemView,OrderViewSet,FilterOptionsView,create_razorpay_order,ClearCartView,CartMergeView,brochure_view,UserOrdersViewset
+from warrior_app.views import *
 
 router = DefaultRouter()
 
@@ -33,6 +33,11 @@ router.register('contact_support', ContactSupportViewSet, basename='contact_supp
 router.register('buy_now', OrderViewSet, basename='buy_now')
 router.register('user_orders', UserOrdersViewset, basename='user_orders')
 
+router.register('dealer', DealerViewset, basename='dealer')
+router.register('model_number_and_warrenty', ModelNumberAndWarrentyViewset, basename='model_number_and_warrenty')
+router.register('product_type', ProductTypeViewset, basename='product_type')
+router.register('states', StateSelectionViewset, basename='states')
+router.register('districts', DistrictSelectionViewset, basename='districts')
 
 
 urlpatterns = [
@@ -40,7 +45,7 @@ urlpatterns = [
     path('api/', include(router.urls)),
     path('api/register/', RegisterView.as_view(), name='register'),
     path('api/login/', LoginView.as_view(), name='login'),
-     path('api/cart/', CartView.as_view(), name='cart'),
+    path('api/cart/', CartView.as_view(), name='cart'),
     path('api/cart_item/', CartItemView.as_view(), name='cart_item'),
     path("api/cart_item/<int:pk>/", CartItemView.as_view()),
     path("api/cart/clear/", ClearCartView.as_view()),
@@ -48,7 +53,8 @@ urlpatterns = [
     path('api/filters/<str:subcategory_slug>/', FilterOptionsView.as_view() , name='filter_options'),
     path('api/create-razorpay-order/', create_razorpay_order),
     path('api/brochures/<str:filename>', brochure_view, name='brochure_view'),
+    path("api/warrenty_registration/", warrenty_registration),
     
 
-
+    path('dashboard/',include('Dashboard.urls'))
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

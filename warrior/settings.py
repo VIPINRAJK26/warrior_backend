@@ -25,13 +25,12 @@ SECRET_KEY = 'django-insecure-ux1couvf(a(kejggc@6xa6-d_j#w)i&&wh_!-o*d^s2ot_l7l&
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
 
 INSTALLED_APPS = [
-    'warrior_app',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -39,6 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'warrior_app',
+    'Dashboard',
     'corsheaders',
     'rest_framework_simplejwt',
 ]
@@ -72,14 +73,8 @@ REST_FRAMEWORK = {
 }
 
 
+CORS_ALLOW_ALL_ORIGINS = True
 
-
-
-CORS_ALLOW_ALL_ORIGINS = False
-
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # or whatever your frontend runs on
-]
 
 CORS_ALLOW_METHODS = (
     "DELETE",
@@ -103,10 +98,20 @@ CORS_ALLOW_HEADERS = (
     'origin',
 )
 
-CORS_ALLOW_ALL_ORIGINS = True
 
 ROOT_URLCONF = 'warrior.urls'
 
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://warriorind.in",
+    "https://www.warriorind.in",
+    "https://warrantyregistration.warriorind.in",
+    "https://www.warrantyregistration.warriorind.in",
+]
 
 
 TEMPLATES = [
@@ -136,6 +141,20 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+EMAIL_HOST_USER = "warriorpowerindia@gmail.com"
+EMAIL_HOST_PASSWORD = "ukty tuhu pzcr remg"
+
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+ADMIN_EMAIL = ["warriorpowerindia@gmail.com"]
+
 
 
 # Password validation

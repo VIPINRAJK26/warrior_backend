@@ -1,8 +1,8 @@
 from rest_framework import serializers
-from warrior_app.models import MainPreview, Products, PreviewDetails, HeroCarousel,ContactSupport,Cart,CartItem,BuyNow,OrderItem,SUB_CATEGORY_CHOICES,Invoice
-from django.contrib.auth import authenticate
+from warrior_app.models import *
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
+from dateutil.relativedelta import relativedelta
 
 User = get_user_model()
 
@@ -66,7 +66,6 @@ class ContactSupportSerializer(serializers.ModelSerializer):
         model = ContactSupport
         fields = "__all__"
         
-# accounts/serializers.py
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
@@ -214,5 +213,65 @@ class BuyNowSerializer(serializers.ModelSerializer):
 
 
 
-        
+class WarrentyRegistrationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WarrentyRegistration
+        fields = "__all__"
+        read_only_fields = (
+            "warranty_period_months",
+            "warranty_end_date",
+        )
 
+    def validate(self, data):
+        try:
+            model = ModelNumberAndWarrenty.objects.get(
+                model_number__iexact=data["model_number"]
+            )
+        except ModelNumberAndWarrenty.DoesNotExist:
+            raise serializers.ValidationError({
+                "model_number": "Invalid model number"
+            })
+
+        warranty_months = int(model.warrenty)
+
+        data["warranty_period_months"] = warranty_months
+        data["warranty_end_date"] = (
+            data["purchase_date"]
+            + relativedelta(months=warranty_months)
+        )
+
+        return data
+
+
+
+class DealerSerializer(serializers.ModelSerializer):
+    district_name = serializers.CharField(source="district.district", read_only=True)   
+    class Meta:
+        model = Dealer
+        fields = "__all__"
+
+
+class ModelNumberAndWarrentySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ModelNumberAndWarrenty
+        fields = "__all__"
+
+
+class ProductTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductType
+        fields = "__all__"
+
+
+class StateSelectionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StateSelection
+        fields = "__all__"
+
+
+class DistrictSelectionSerializer(serializers.ModelSerializer):
+    state_name = serializers.CharField(source="state.state", read_only=True)
+
+    class Meta:
+        model = DistrictSelection
+        fields = "__all__"
